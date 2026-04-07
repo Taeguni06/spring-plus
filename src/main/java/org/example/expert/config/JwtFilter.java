@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.expert.config.JwtUtil;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -33,10 +32,15 @@ public class JwtFilter extends OncePerRequestFilter {
             String jwt = jwtUtil.substringToken(bearerJwt);
             try {
                 Claims claims = jwtUtil.extractClaims(jwt);
+
                 if (claims != null) {
                     Long userId = Long.parseLong(claims.getSubject());
                     String email = claims.get("email", String.class);
                     String userRole = claims.get("userRole", String.class);
+
+                    request.setAttribute("userId", userId);
+                    request.setAttribute("email", email);
+                    request.setAttribute("userRole", userRole);
 
                     SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + userRole);
 
