@@ -17,6 +17,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -25,6 +29,7 @@ public class TodoService {
     private final TodoRepository todoRepository;
     private final WeatherClient weatherClient;
 
+    @Transactional
     public TodoSaveResponse saveTodo(AuthUser authUser, TodoSaveRequest todoSaveRequest) {
         User user = User.fromAuthUser(authUser);
 
@@ -43,21 +48,36 @@ public class TodoService {
                 savedTodo.getTitle(),
                 savedTodo.getContents(),
                 weather,
-                new UserResponse(user.getId(), user.getEmail())
+                new UserResponse(user.getId(), user.getEmail(), user.getNickname())
         );
     }
 
-    public Page<TodoResponse> getTodos(int page, int size) {
+    public Page<TodoResponse> getTodos(int page, int size, String weather, LocalDate startDate, LocalDate endDate) {
         Pageable pageable = PageRequest.of(page - 1, size);
 
-        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+        // 기간 설정 (시작일의 00:00:00 ~ 종료일의 23:59:59)
+        LocalDateTime start = (startDate != null) ? startDate.atStartOfDay() : null;
+        LocalDateTime end = (endDate != null) ? endDate.atTime(LocalTime.MAX) : null;
+
+        Page<Todo> todos;
+
+        // 검색 조건에 따른 if 문
+        if (weather != null && start != null && end != null) {
+            todos = todoRepository.findAllByWeatherAndModifiedAtBetween(weather, start, end, pageable);
+        } else if (weather != null) {
+            todos = todoRepository.findAllByWeather(weather, pageable);
+        } else if (start != null && end != null) {
+            todos = todoRepository.findAllByModifiedAtBetween(start, end, pageable);
+        } else {
+            todos = todoRepository.findAll(pageable);
+        }
 
         return todos.map(todo -> new TodoResponse(
                 todo.getId(),
                 todo.getTitle(),
                 todo.getContents(),
                 todo.getWeather(),
-                new UserResponse(todo.getUser().getId(), todo.getUser().getEmail()),
+                new UserResponse(todo.getUser().getId(), todo.getUser().getEmail(), todo.getUser().getNickname()),
                 todo.getCreatedAt(),
                 todo.getModifiedAt()
         ));
@@ -74,7 +94,7 @@ public class TodoService {
                 todo.getTitle(),
                 todo.getContents(),
                 todo.getWeather(),
-                new UserResponse(user.getId(), user.getEmail()),
+                new UserResponse(user.getId(), user.getEmail(), user.getNickname()),
                 todo.getCreatedAt(),
                 todo.getModifiedAt()
         );
